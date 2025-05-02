@@ -36,7 +36,7 @@ void loop()
 {
   logData();
   parseCommand();
-  delay(100);
+  delay(50); // TODO: shorten delay
 }
 
 void logData() {
@@ -54,7 +54,7 @@ void moveServo() {
   servo.write(30);
   delay(100);
   servo.write(0);
-  delay(100);
+  delay(500);
 }
 
 void parseCommand() {
