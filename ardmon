@@ -3,19 +3,32 @@
 SERIAL_PATH="/dev/ttyUSB0"
 SERIAL_BAUD=9600
 COMMAND=""
+
 CLI_NAME="ardmon"
-SERIAL_OUTPUT="/dev/null"
+
+WORKING_DIR="./."$CLI_NAME"_temp/"
+
+SOCAT_PID_FILE="socat.pid"
+PIPE_FILE=$CLI_NAME"_pipe"
 
 usage() {
     echo "Usage:"
-    echo "  $CLI_NAME start (-p [path] -b [baud] -o [output])       - Start background serial connection"
-    echo "  $CLI_NAME stop                                          - Stop background connection"
-    echo "  $CLI_NAME send [command 1, command 2...]                - Send command to Arduino"
+    echo "  $CLI_NAME start (-p [path] -b [baud])       - Start background serial connection"
+    echo "  $CLI_NAME stop                              - Stop background connection"
+    echo "  $CLI_NAME send [command 1, command 2...]    - Send command to Arduino"
 }
 
-# openSerial() {
-    
-# }
+openSerial() {
+    if [[ ! -d $WORKING_DIR ]]; then
+        mkdir -p $WORKING_DIR
+    fi
+
+    socat PTY,link=$WORKING_DIR$PIPE_FILE,b$2,raw,echo=0 $1,b$2,raw & # run socat to connect FIFO to serial in background
+    # socat creates the pipe file automatically
+
+    echo $! >> $WORKING_DIR$SOCAT_PID_FILE # store pid of latest executed background process
+    echo "Started socat with PID $SOCAT_PID"
+}
 
 start() {
     while [[ $# -gt 0 ]]; do
@@ -28,10 +41,6 @@ start() {
                 SERIAL_BAUD=$2
                 shift 2
                 ;;
-            -o)
-                SERIAL_OUTPUT=$2
-                shift 2
-                ;;
             *)
                 echo "Invalid usage: use '$CLI_NAME help' to get usage"
                 exit 1
@@ -39,8 +48,24 @@ start() {
         esac
     done
 
-    echo "start at $SERIAL_PATH and $SERIAL_BAUD"
     openSerial $SERIAL_PATH $SERIAL_BAUD
+}
+
+stop() {
+    kill $(< $SOCAT_PID) && echo "Killed socat (PID $SOCAT_PID)"
+    # socat deteles its associated pipe file automatically
+
+    if [[ -d $WORKING_DIR ]]; then
+        rm -r $WORKING_DIR
+    fi
+}
+
+send() {
+    while [[ $# -gt 0 ]]; do
+        echo -e $1 > $SERIAL_PATH
+        shift 1
+    done
+    # TODO: handle output, send back errors
 }
 
 # main entry
@@ -55,8 +80,16 @@ if [[ $# -gt 0 ]]; then
             start $@ # pass remaining arguments to function
             exit 0
             ;;
+        send)
+            send $@
+            exit 0
+            ;;
         help)
             usage
+            exit 0
+            ;;
+        stop)
+            stop
             exit 0
             ;;
         *)
