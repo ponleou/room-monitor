@@ -5,8 +5,6 @@
 #define LIGHT_PIN A0
 #define SERVO_PIN 12
 
-const String COMMAND_PREF = "ardmon ";
-
 Servo servo;
 
 /*

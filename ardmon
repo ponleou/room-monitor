@@ -1,0 +1,64 @@
+#!/bin/bash
+
+SERIAL_PATH="/dev/ttyUSB0"
+SERIAL_BAUD=9600
+COMMAND=""
+CLI_NAME="ardmon"
+
+usage() {
+    echo "Usage:"
+    echo "  $(CLI_NAME) start -p [path] -b [baud]        - Start background serial connection"
+    echo "  arduinorun stop                         - Stop background connection"
+    echo "  arduinorun send [command]               - Send command to Arduino"
+}
+
+openSerial() {
+    
+}
+
+start() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -p)
+                SERIAL_PATH=$2
+                shift 2
+                ;;
+            -b)
+                SERIAL_BAUD=$2
+                shift 2
+                ;;
+            *)
+                echo "Invalid usage: use '$(CLI_NAME) help' to get usage"
+                exit 1
+                ;;
+        esac
+    done
+
+    openSerial $SERIAL_PATH $SERIAL_BAUD
+}
+
+if [[$# -gt 0]]; then
+    COMMAND = $1
+    shift
+
+    case "$COMMAND" in
+        start)
+            start
+            exit 0
+            ;;
+        help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Use '$(CLI_NAME) help' to get usage"
+            exit 1
+            ;;
+    esac
+
+else
+    echo "Use '$(CLI_NAME) help' to get usage"
+    exit 1
+fi
+
+
