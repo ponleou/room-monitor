@@ -19,6 +19,14 @@ usage() {
 }
 
 openSerial() {
+
+    # check if file exists and its size is greater than zero
+    if [[ -s $SOCAT_PID_PATH ]]; then
+        echo "$CLI_NAME already running at PID $(< $SOCAT_PID_PATH)"
+        exit 1
+    fi
+
+    #  check if directory exists
     if [[ ! -d $WORKING_DIR ]]; then
         mkdir -p $WORKING_DIR
     fi
@@ -55,12 +63,14 @@ stop() {
     kill $(< $SOCAT_PID_PATH) && echo "Killed socat (PID $(< $SOCAT_PID_PATH))"
     # socat deteles its associated pipe file automatically
 
+    #  check if directory exists
     if [[ -d $WORKING_DIR ]]; then
         rm -r $WORKING_DIR
     fi
 }
 
 send() {
+    # check if file exists
     if [[ ! -e $PIPE_PATH ]]; then
         echo "Pipe not found, did you start $CLI_NAME yet?"
         exit 1
