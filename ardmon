@@ -106,5 +106,3 @@ else
     echo "Use '$CLI_NAME help' to get usage"
     exit 1
 fi
-
-
