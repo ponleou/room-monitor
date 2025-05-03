@@ -22,6 +22,7 @@ void logData();
 void moveServo();
 void clearSerialBuffer();
 void parseCommand();
+void runCommand(String flag);
 
 void setup()
 {
@@ -58,8 +59,6 @@ void moveServo() {
 }
 
 void parseCommand() {
-  unsigned int serial_index = 0;
-
   const int MAX_FLAG_LENGTH = 64;
   char flag[MAX_FLAG_LENGTH];
   int flag_index = 0;
@@ -72,13 +71,7 @@ void parseCommand() {
     if (c == ' ' || c == '\n' || !(flag_index < MAX_FLAG_LENGTH - 1)) {
       flag[flag_index] = '\0'; // terminate the string
 
-
-      if (strcmp(flag, "-ms") == 0) {
-        moveServo();
-      }
-      else {
-        Serial.println("=Unknown flag");
-      }
+      runCommand(flag);
 
       flag_index = 0;
       continue;
@@ -87,6 +80,15 @@ void parseCommand() {
     // build the flag as char[] into string
     flag[flag_index] = c;
     flag_index++;
+  }
+}
+
+void runCommand(String flag) {
+  if (flag == "-ms") {
+    moveServo();
+  }
+  else {
+    Serial.println("=Unknown flag");
   }
 }
 
