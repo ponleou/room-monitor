@@ -8,8 +8,8 @@ CLI_NAME="ardmon"
 
 WORKING_DIR="./."$CLI_NAME"_temp/"
 
-SOCAT_PID_FILE="socat.pid"
-PIPE_FILE=$CLI_NAME"_pipe"
+SOCAT_PID_PATH=$WORKING_DIR"socat.pid"
+PIPE_PATH=$WORKING_DIR$CLI_NAME"_pipe"
 
 usage() {
     echo "Usage:"
@@ -23,11 +23,11 @@ openSerial() {
         mkdir -p $WORKING_DIR
     fi
 
-    socat PTY,link=$WORKING_DIR$PIPE_FILE,b$2,raw,echo=0 $1,b$2,raw & # run socat to connect FIFO to serial in background
+    socat PTY,link=$PIPE_PATH,b$2,raw,echo=0 $1,b$2,raw & # run socat to connect FIFO to serial in background
     # socat creates the pipe file automatically
 
-    echo $! >> $WORKING_DIR$SOCAT_PID_FILE # store pid of latest executed background process
-    echo "Started socat with PID $SOCAT_PID"
+    echo $! >> $SOCAT_PID_PATH # store pid of latest executed background process
+    echo "Started socat with PID $(< $SOCAT_PID_PATH)"
 }
 
 start() {
@@ -52,7 +52,7 @@ start() {
 }
 
 stop() {
-    kill $(< $SOCAT_PID) && echo "Killed socat (PID $SOCAT_PID)"
+    kill $(< $SOCAT_PID_PATH) && echo "Killed socat (PID $(< $SOCAT_PID_PATH))"
     # socat deteles its associated pipe file automatically
 
     if [[ -d $WORKING_DIR ]]; then
@@ -61,8 +61,13 @@ stop() {
 }
 
 send() {
+    if [[ ! -e $PIPE_PATH ]]; then
+        echo "Pipe not found, did you start $CLI_NAME yet?"
+        exit 1
+    fi
+
     while [[ $# -gt 0 ]]; do
-        echo -e $1 > $SERIAL_PATH
+        echo -e $1 > $PIPE_PATH
         shift 1
     done
     # TODO: handle output, send back errors
