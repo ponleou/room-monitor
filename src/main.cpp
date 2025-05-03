@@ -59,7 +59,6 @@ void moveServo() {
 
 void parseCommand() {
   unsigned int serial_index = 0;
-  bool contain_prefix = false; // if command starts with "ardmon" set true
 
   const int MAX_FLAG_LENGTH = 64;
   char flag[MAX_FLAG_LENGTH];
@@ -69,57 +68,25 @@ void parseCommand() {
     delay(10);
     char c = Serial.read();
 
-    // terminate on line break when its not a command 
-    if (c == '\n' && !contain_prefix) {
-      Serial.println("=Unknown Command");
-      return;
-    }
+    // if space, line break, or max index, process current flag
+    if (c == ' ' || c == '\n' || !(flag_index < MAX_FLAG_LENGTH - 1)) {
+      flag[flag_index] = '\0'; // terminate the string
 
-    // reading command flags
-    if (contain_prefix) {
-      
-      // command ended
-      if (c == '\n') {
-        contain_prefix = false;
+
+      if (strcmp(flag, "-ms") == 0) {
+        moveServo();
+      }
+      else {
+        Serial.println("=Unknown flag");
       }
 
-      // if space, line break, or max index, process current flag
-      if (c == ' ' || c == '\n' || !(flag_index < MAX_FLAG_LENGTH - 1)) {
-        flag[flag_index] = '\0'; // terminate the string
-
-
-        if (strcmp(flag, "-ms") == 0) {
-          moveServo();
-        }
-        else {
-          Serial.println("=Unknown flag");
-        }
-
-        flag_index = 0;
-        continue;
-      }
-
-      // build the flag as char[] into string
-      flag[flag_index] = c;
-      flag_index++;
-      
-      continue; // to skip the command prefix check
+      flag_index = 0;
+      continue;
     }
 
-    // check if line contains command prefix => read only if it is
-    if (c == COMMAND_PREF[serial_index]) {
-      if(serial_index < COMMAND_PREF.length() - 1) {
-        serial_index++;
-        continue;
-      }
-      contain_prefix = true;
-    }
-    else {
-      Serial.println("=Unknown Command");
-      clearSerialBuffer();
-      return;
-    }
-
+    // build the flag as char[] into string
+    flag[flag_index] = c;
+    flag_index++;
   }
 }
 
