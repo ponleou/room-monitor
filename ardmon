@@ -4,17 +4,18 @@ SERIAL_PATH="/dev/ttyUSB0"
 SERIAL_BAUD=9600
 COMMAND=""
 CLI_NAME="ardmon"
+SERIAL_OUTPUT="/dev/null"
 
 usage() {
     echo "Usage:"
-    echo "  $(CLI_NAME) start -p [path] -b [baud]        - Start background serial connection"
-    echo "  arduinorun stop                         - Stop background connection"
-    echo "  arduinorun send [command]               - Send command to Arduino"
+    echo "  $CLI_NAME start (-p [path] -b [baud] -o [output])       - Start background serial connection"
+    echo "  $CLI_NAME stop                                          - Stop background connection"
+    echo "  $CLI_NAME send [command 1, command 2...]                - Send command to Arduino"
 }
 
-openSerial() {
+# openSerial() {
     
-}
+# }
 
 start() {
     while [[ $# -gt 0 ]]; do
@@ -27,23 +28,31 @@ start() {
                 SERIAL_BAUD=$2
                 shift 2
                 ;;
+            -o)
+                SERIAL_OUTPUT=$2
+                shift 2
+                ;;
             *)
-                echo "Invalid usage: use '$(CLI_NAME) help' to get usage"
+                echo "Invalid usage: use '$CLI_NAME help' to get usage"
                 exit 1
                 ;;
         esac
     done
 
+    echo "start at $SERIAL_PATH and $SERIAL_BAUD"
     openSerial $SERIAL_PATH $SERIAL_BAUD
 }
 
-if [[$# -gt 0]]; then
-    COMMAND = $1
-    shift
+# main entry
+if [[ $# -gt 0 ]]; then
+
+    # get command and remove argument
+    COMMAND=$1
+    shift 1
 
     case "$COMMAND" in
         start)
-            start
+            start $@ # pass remaining arguments to function
             exit 0
             ;;
         help)
@@ -51,13 +60,12 @@ if [[$# -gt 0]]; then
             exit 0
             ;;
         *)
-            echo "Use '$(CLI_NAME) help' to get usage"
+            echo "Use '$CLI_NAME help' to get usage"
             exit 1
             ;;
     esac
-
 else
-    echo "Use '$(CLI_NAME) help' to get usage"
+    echo "Use '$CLI_NAME help' to get usage"
     exit 1
 fi
 
