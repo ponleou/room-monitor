@@ -4,7 +4,7 @@ SERIAL_PATH="/dev/ttyUSB0"
 SERIAL_BAUD=9600
 COMMAND=""
 
-CLI_NAME="ardmon"
+CLI_NAME="ardcom"
 
 WORKING_DIR="./."$CLI_NAME"_temp/"
 
