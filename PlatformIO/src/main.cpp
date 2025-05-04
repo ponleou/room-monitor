@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Servo.h>
 
-#define SOUND_PIN 13
-#define LIGHT_PIN A0
+#define SOUND_PIN A0
+#define LIGHT_PIN A5
 #define SERVO_PIN 12
 
 Servo servo;
@@ -11,6 +11,7 @@ Servo servo;
 Writes into serial using prefixes:
   - ":" prefix is a log
   - "=" prefix is an error
+  - "*" means end of log
 
   its logs are ":sound-detected,light-level" type: digital,analog
   its errors are "=error-message" type: string
@@ -33,14 +34,14 @@ void setup()
 
 void loop()
 {
-  logData();
+  // logData(); // FIXME: remove on final
   parseCommand();
   delay(50); // TODO: shorten delay
 }
 
 void logData() {
-  // log: ":sound-detected,light-level" type: digital,analog
-  Serial.println(":" + String(digitalRead(SOUND_PIN)) + "," + String(analogRead(LIGHT_PIN)));
+  // log: ":sound-detected,light-level" type: analog,analog
+  Serial.println(":" + String(analogRead(SOUND_PIN)) + "," + String(analogRead(LIGHT_PIN)));
 }
 
 void clearSerialBuffer() {
@@ -85,8 +86,14 @@ void runCommand(String flag) {
   if (flag == "-ms") {
     moveServo();
   }
+  else if ( flag == "-log" ) {
+    logData();
+  }
   else {
     Serial.println("=Unknown flag");
+    return;
   }
+
+  Serial.println(":Success");
 }
 

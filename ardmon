@@ -15,7 +15,7 @@ usage() {
     echo "Usage:"
     echo "  $CLI_NAME start (-p [path] -b [baud])       - Start background serial connection"
     echo "  $CLI_NAME stop                              - Stop background connection"
-    echo "  $CLI_NAME send [command 1, command 2...]    - Send command to Arduino"
+    echo "  $CLI_NAME send [command 1, command 2...]    - Send command to serial connection"
 }
 
 openSerial() {
