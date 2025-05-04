@@ -101,10 +101,12 @@ send() {
                 break
             fi
 
-            # # check if first character is "=" meaning error
-            # if [[ "${output:0:1}" == "=" ]]; then
-            #     echo "Error: ${output:1}"
-            # fi
+            # check if first character is "=" meaning error
+            if [[ "${output:0:1}" == "=" ]]; then
+                # echo "Error: ${output:1}"
+                echo $output
+                break
+            fi
 
             echo $output
         done
