@@ -94,6 +94,6 @@ void runCommand(String flag) {
     return;
   }
 
-  Serial.println(":Success");
+  Serial.println("*");
 }
 
