@@ -1,7 +1,14 @@
 from sre_parse import State
 import subprocess
 import os
+import sys
 from abc import ABC, abstractmethod
+
+VERBOSE = False
+
+VENV_PATH = "./.venv/"
+PYTHON_PATH = f"{VENV_PATH}bin/python"
+REQUIREMENTS = "./requirements.txt"
 
 ENV = os.environ.copy() # get current environment variables
 ENV["PATH"] = f'{ENV["PATH"]}:{os.getcwd()}' # add pwd to PATH env so shell can find ardcom
@@ -16,6 +23,13 @@ class ArduinoError(Exception):
 
 def shell(command: str) -> subprocess.CompletedProcess[str] :
     output = subprocess.run(command, shell=True, capture_output=True, text=True, env=ENV)
+
+    if VERBOSE:
+        if output.returncode != 0:
+            print(f"Error {output.returncode}: {output.stderr}")
+        else:
+            print(f"{output.stdout}")
+
     return output
 
 def ardcom_start() -> None:
@@ -53,6 +67,21 @@ def ardcom_move_servo() -> None:
     output_ardcom = shell(f"ardcom send -ms")
     if output_ardcom.returncode != 0:
         raise ArdcomError(output_ardcom.stderr)
+
+def shell_python(command: str) -> subprocess.CompletedProcess[str]:
+    return shell(f"{PYTHON_PATH} {command}")
+
+def generate_venv() -> None:
+    # if venv doesnt exist
+    if not os.path.isdir(VENV_PATH):
+        shell(f"{sys.executable} -m venv {VENV_PATH}")
+
+    # install required pip stuff
+    if os.path.isfile(REQUIREMENTS):
+        shell_python(f"-m pip install -r {REQUIREMENTS}")
+    else:
+        raise FileNotFoundError(f"{REQUIREMENTS} not found")
+
 
 class FSM:
     # STATE class
@@ -113,7 +142,22 @@ class FSM:
                 self.fsm.delay = 100
 
             def run(self):
-                output = shell("python3 ir_scan.py")
+                ir_scan_file = "./ir_scan.py"
+                output = None
+
+                # run ir_scan file to check room for people detection
+                if os.path.isfile(ir_scan_file):
+                    output = shell_python(ir_scan_file)
+                else:
+                    raise FileNotFoundError(f"{ir_scan_file} not found")
+                
+                # if detected, turn on lights
+                if output.returncode == 0:
+                    ardcom_move_servo()
+                
+                # always go back to Start state after scan
+                self.fsm.set_state(FSM.StartState(self.fsm))
+                    
 
 
     def __init__(self, data_length: int, transition_light_value: int, transition_sound_value: int):
@@ -169,6 +213,7 @@ class FSM:
 
 def main():
     ardcom_start()
+    generate_venv()
 
     machine = FSM(5, 50, 50)
     machine.reset()

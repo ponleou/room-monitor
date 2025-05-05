@@ -1,3 +1,4 @@
 .ardcom_temp/
+.venv/
 .pyenv/
 .model/
