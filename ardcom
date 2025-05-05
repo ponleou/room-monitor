@@ -6,7 +6,7 @@ COMMAND=""
 
 CLI_NAME="ardcom"
 
-WORKING_DIR="$(dirname "$(realpath "$BASH_SOURCE")")/.${CLI_NAME}_temp/" # always creates the working directory next to the bash
+WORKING_DIR="/tmp/.${CLI_NAME}_temp/" # always creates the working directory next to the bash
 
 WORKING_DIR_PATH="${WORKING_DIR}"
 SOCAT_PID_PATH="${WORKING_DIR}socat.pid"
@@ -95,10 +95,12 @@ send() {
 
         timedout=0 # error checker to see if the read times out
 
-        while timedout=1 && read -r -t $READ_TIMEOUT output < "$PIPE_PATH"; do
+        while timedout=1 && read -r -t $READ_TIMEOUT output < $PIPE_PATH; do
 
             timedout=0
             output=$(printf '%s' "$output" | tr -d '\r\n') # clean whitespaces
+
+            echo $output
 
             # arduino is coded to send a * everytime it successfully finishes a command/job
             if [[ $output == "*" ]]; then

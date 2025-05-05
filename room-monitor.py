@@ -3,6 +3,7 @@ import os
 import sys
 from time import sleep
 from abc import ABC, abstractmethod
+import tempfile
 
 VERBOSE = True
 
@@ -22,7 +23,37 @@ class ArduinoError(Exception):
         super().__init__(message)
 
 def shell(command: str) -> subprocess.CompletedProcess[str] :
-    output = subprocess.run(command.split(" "), capture_output=True, text=True, env=ENV, timeout=5, start_new_session=True)
+
+    cmd_args = command.split(" ")
+
+    # run processes with Popen for lower-level handling
+    process = subprocess.Popen(
+        # cmd_args,
+        command,
+        shell=True,
+        env=ENV,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True
+    )
+
+    stdout = None
+    stderr = None
+
+    try:
+        # wait for process to complete to get std with timeout
+        stdout, stderr = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        # if timed out, kill, wait to be cleaned, and then reraise the exception
+        process.kill()
+        process.wait()
+        raise
+    
+    # get return code
+    returncode = process.returncode
+
+    # make the CompletedProcess to simulate subprocess.run() output
+    output = subprocess.CompletedProcess(process.args, returncode, stdout.decode(), stderr.decode())
 
     if VERBOSE:
         if output.returncode != 0:
