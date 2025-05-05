@@ -15,9 +15,6 @@ PIPE_PATH="${WORKING_DIR}${CLI_NAME}_pipe"
 READ_TIMEOUT=5 # ms
 
 usage() {
-    echo $WORKING_DIR
-    echo $WORKING_DIR_PATH
-    echo $SOCAT_PID_PATH
     echo "Usage:"
     echo "  $CLI_NAME start (-p [path] -b [baud])       - Start background serial connection"
     echo "  $CLI_NAME stop                              - Stop background serial connection"
