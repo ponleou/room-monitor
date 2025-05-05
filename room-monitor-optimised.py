@@ -2,26 +2,25 @@ import subprocess
 import os
 from ultralytics import YOLO
 import cv2
-import sys
 from time import sleep
 from time import time
 from abc import ABC, abstractmethod
-import tempfile
 
-VERBOSE = True
+IR_CAMERA_NUM = 2 # IR camera device number
+CAMERA_TIMEOUT = 10 # seconds to check room
+CAMERA_THRESHOLD = 5 # number of person captures to consider success
 
-VENV_PATH = "./.venv/"
-PYTHON_PATH = f"{VENV_PATH}bin/python"
-REQUIREMENTS = "./requirements.txt"
+DATA_LENGTH = 3 # number of last recorded values to calculate
+TRANSITION_LIGHT_VALUE = 50 # the value for transition between considering dark and light
+TRANSITION_SOUND_VALUE = 50 # the value for transition between considering sound and no sound 
+
+VERBOSE = False # log shell outputs
+
 
 ENV = os.environ.copy() # get current environment variables
 ENV["PATH"] = f'{ENV["PATH"]}:{os.getcwd()}' # add pwd to PATH env so shell can find ardcom
 
-IR_CAMERA_NUM = 2 # IR camera device number
-CONFIDENCE = 50 # percentage
-THRESHOLD = 5 # number of person captures to consider success
-TIMEOUT = 10 # seconds to check room
-
+# custom errors
 class ArdcomError(Exception):
     def __init__(self, message):
         super().__init__(message)
@@ -30,6 +29,7 @@ class ArduinoError(Exception):
     def __init__(self, message):
         super().__init__(message)
 
+# run commands in shell
 def shell(command: str, timeout=5) -> subprocess.CompletedProcess[str] :
 
     output = subprocess.run(command, shell=True, capture_output=True, text=True, env=ENV, start_new_session=True, timeout=timeout)
@@ -42,6 +42,7 @@ def shell(command: str, timeout=5) -> subprocess.CompletedProcess[str] :
 
     return output
 
+# pre-written functions to run essential ardcom commands
 def ardcom_start() -> None:
     output = shell("ardcom start")
     if output.returncode != 0:
@@ -78,26 +79,13 @@ def ardcom_move_servo() -> None:
     if output_ardcom.returncode != 0:
         raise ArdcomError(output_ardcom.stderr)
 
-def shell_python(command: str, timeout=5) -> subprocess.CompletedProcess[str]:
-    return shell(f"{PYTHON_PATH} {command}", timeout)
-
-def generate_venv() -> None:
-    # if venv doesnt exist
-    if not os.path.isdir(VENV_PATH):
-        shell(f'"{sys.executable}" -m venv {VENV_PATH}')
-
-    # install required pip stuff
-    if os.path.isfile(REQUIREMENTS):
-        shell_python(f'-m pip install -r "{REQUIREMENTS}"', None)
-    else:
-        raise FileNotFoundError(f"{REQUIREMENTS} not found")
-
 # interface for states (defined as abstract class)
 class IState(ABC):
     @abstractmethod
     def run(self) -> None:
         pass
 
+# main finite state machine for program
 class FSM(IState):
     # abstract STATE class
     class State(IState, ABC):
@@ -157,64 +145,23 @@ class FSM(IState):
             FSM.State.__init__(self, fsm)
             self.fsm.delay = 100
 
-        def check_ir(self) -> bool:
-
-            start_time = time()
-            detection_num = 0
-
-            while time() - start_time < TIMEOUT:
-                is_captured, picture = self.fsm.take_camera() # capture an image
-
-                if is_captured:
-                    result = self.fsm.model(picture, verbose=False)[0] # only passed one image anyways
-
-                    # finding index of "person" classification
-                    person_index = 0 
-                    for index, name in enumerate(result.names):
-                        if name == "person":
-                            person_index = index
-                            break
-
-                    # check if the result has any detection of person
-                    for object in result.boxes:
-
-                        # check if detection/object is a person
-                        if not int(object.cls[0].item()) == person_index:
-                            continue
-
-                        # check if theres one person per image input only
-                        if int(object.conf[0].item() * 100) > CONFIDENCE:
-                            detection_num += 1
-                            break;
-
-                # exit with 0, success
-                if detection_num >= THRESHOLD:
-                    self.fsm.close_camera()
-                    return True
-            
-            # exit with 1, failed
-            self.fsm.close_camera()
-            return False
-
         def run(self):
-            # ir_scan_file = "./ir_scan.py"
-            # output = None
-
-            # # run ir_scan file to check room for people detection
-            # if os.path.isfile(ir_scan_file):
-            #     output = shell_python(ir_scan_file, None)
-            # else:
-            #     raise FileNotFoundError(f"{ir_scan_file} not found")
-            
             # if detected, turn on lights
-            if self.check_ir():
+            if self.fsm.check_ir():
                 ardcom_move_servo()
                 sleep(5)
             
             # always go back to Start state after scan
             self.fsm.set_state(FSM.StartState(self.fsm))
 
-    def __init__(self, data_length: int, transition_light_value: int, transition_sound_value: int):
+    
+    def __init__(self, data_length: int, transition_light_value: int, transition_sound_value: int, camera_scan_timeout: int, camera_scan_threshold: int):
+        """
+        data_length: number of last recorded values to calculate\n
+        transition_value (light and sound): the value for transition between considering dark and light, or sound and no sound respectively\n
+        camera_scan_timeout: time in seconds to scan before timeout and exiting scan\n
+        camera_scan_threshold: number of successful scans required for success\n
+        """
         self.state = None
         self.delay = 0
         self.light_data = [] # will only contain max of data length
@@ -223,9 +170,11 @@ class FSM(IState):
         self.transition_light_value = transition_light_value # value above this means room is bright, below means dark
         self.transition_sound_value = transition_sound_value # value above means sound is made, below means no sound (interference sound)
 
+        self.camera_scan_threshold = camera_scan_threshold
+        self.camera_scan_timeout = camera_scan_timeout
         self.camera = None
-        
         self.model = YOLO(".model/yolo11n.pt")
+        self.model_confidence = 50 # percent
 
     def open_camera(self) -> None:
         if not self.camera:
@@ -243,6 +192,45 @@ class FSM(IState):
 
         self.camera = None
 
+    def check_ir(self) -> bool:
+            start_time = time()
+            detection_num = 0
+
+            while time() - start_time < self.camera_scan_timeout:
+                is_captured, picture = self.take_camera() # capture an image
+
+                if is_captured:
+                    result = self.model(picture, verbose=False)[0] # only passed one image anyways
+
+                    # finding index of "person" classification
+                    person_index = 0 
+                    for index, name in enumerate(result.names):
+                        if name == "person":
+                            person_index = index
+                            break
+
+                    # check if the result has any detection of person
+                    for object in result.boxes:
+
+                        # check if detection/object is a person
+                        if not int(object.cls[0].item()) == person_index:
+                            continue
+
+                        # check if theres one person per image input only
+                        if int(object.conf[0].item() * 100) > self.model_confidence:
+                            detection_num += 1
+                            break;
+
+                # exit with 0, success
+                if detection_num >= self.camera_scan_threshold:
+                    self.close_camera()
+                    return True
+            
+            # exit with 1, failed
+            self.close_camera()
+            return False
+
+    # from IState
     def run(self) -> None:
         self.state.run()
 
@@ -290,11 +278,9 @@ class FSM(IState):
 
 def main():
     ardcom_start()
-    # generate_venv()
-
     sleep(1)
 
-    machine = FSM(3, 50, 50)
+    machine = FSM(DATA_LENGTH, TRANSITION_LIGHT_VALUE, TRANSITION_SOUND_VALUE, CAMERA_TIMEOUT, CAMERA_THRESHOLD)
     machine.reset()
 
     while True:

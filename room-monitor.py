@@ -3,7 +3,6 @@ import os
 import sys
 from time import sleep
 from abc import ABC, abstractmethod
-import tempfile
 
 VERBOSE = True
 
