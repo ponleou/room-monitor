@@ -22,38 +22,9 @@ class ArduinoError(Exception):
     def __init__(self, message):
         super().__init__(message)
 
-def shell(command: str) -> subprocess.CompletedProcess[str] :
+def shell(command: str, timeout=5) -> subprocess.CompletedProcess[str] :
 
-    cmd_args = command.split(" ")
-
-    # run processes with Popen for lower-level handling
-    process = subprocess.Popen(
-        # cmd_args,
-        command,
-        shell=True,
-        env=ENV,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True
-    )
-
-    stdout = None
-    stderr = None
-
-    try:
-        # wait for process to complete to get std with timeout
-        stdout, stderr = process.communicate(timeout=5)
-    except subprocess.TimeoutExpired:
-        # if timed out, kill, wait to be cleaned, and then reraise the exception
-        process.kill()
-        process.wait()
-        raise
-    
-    # get return code
-    returncode = process.returncode
-
-    # make the CompletedProcess to simulate subprocess.run() output
-    output = subprocess.CompletedProcess(process.args, returncode, stdout.decode(), stderr.decode())
+    output = subprocess.run(command, shell=True, capture_output=True, text=True, env=ENV, start_new_session=True, timeout=timeout)
 
     if VERBOSE:
         if output.returncode != 0:
@@ -99,17 +70,17 @@ def ardcom_move_servo() -> None:
     if output_ardcom.returncode != 0:
         raise ArdcomError(output_ardcom.stderr)
 
-def shell_python(command: str) -> subprocess.CompletedProcess[str]:
-    return shell(f"{PYTHON_PATH} {command}")
+def shell_python(command: str, timeout=5) -> subprocess.CompletedProcess[str]:
+    return shell(f"{PYTHON_PATH} {command}", timeout)
 
 def generate_venv() -> None:
     # if venv doesnt exist
     if not os.path.isdir(VENV_PATH):
-        shell(f"{sys.executable} -m venv {VENV_PATH}")
+        shell(f'"{sys.executable}" -m venv {VENV_PATH}')
 
     # install required pip stuff
     if os.path.isfile(REQUIREMENTS):
-        shell_python(f"-m pip install -r {REQUIREMENTS}")
+        shell_python(f'-m pip install -r "{REQUIREMENTS}"', None)
     else:
         raise FileNotFoundError(f"{REQUIREMENTS} not found")
 
@@ -183,13 +154,14 @@ class FSM(IState):
 
             # run ir_scan file to check room for people detection
             if os.path.isfile(ir_scan_file):
-                output = shell_python(ir_scan_file)
+                output = shell_python(ir_scan_file, None)
             else:
                 raise FileNotFoundError(f"{ir_scan_file} not found")
             
             # if detected, turn on lights
             if output.returncode == 0:
                 ardcom_move_servo()
+                sleep(5)
             
             # always go back to Start state after scan
             self.fsm.set_state(FSM.StartState(self.fsm))
@@ -252,12 +224,14 @@ def main():
     ardcom_start()
     generate_venv()
 
-    machine = FSM(5, 50, 50)
+    sleep(1)
+
+    machine = FSM(3, 50, 50)
     machine.reset()
 
     while True:
         machine.run()
-        sleep(machine.delay)
+        sleep(machine.delay/1000)
 
 
 if "__main__":
