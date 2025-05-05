@@ -1,10 +1,10 @@
-from sre_parse import State
 import subprocess
 import os
 import sys
+from time import sleep
 from abc import ABC, abstractmethod
 
-VERBOSE = False
+VERBOSE = True
 
 VENV_PATH = "./.venv/"
 PYTHON_PATH = f"{VENV_PATH}bin/python"
@@ -22,7 +22,7 @@ class ArduinoError(Exception):
         super().__init__(message)
 
 def shell(command: str) -> subprocess.CompletedProcess[str] :
-    output = subprocess.run(command, shell=True, capture_output=True, text=True, env=ENV)
+    output = subprocess.run(command.split(" "), capture_output=True, text=True, env=ENV, timeout=5, start_new_session=True)
 
     if VERBOSE:
         if output.returncode != 0:
@@ -82,10 +82,15 @@ def generate_venv() -> None:
     else:
         raise FileNotFoundError(f"{REQUIREMENTS} not found")
 
+# interface for states (defined as abstract class)
+class IState(ABC):
+    @abstractmethod
+    def run(self) -> None:
+        pass
 
-class FSM:
-    # STATE class
-    class State(ABC):
+class FSM(IState):
+    # abstract STATE class
+    class State(IState, ABC):
         def __init__(self, fsm: "FSM"):
             self.fsm = fsm
 
@@ -95,10 +100,10 @@ class FSM:
 
     # child STATE classes
 
-    # when room is still bright, periodically check room is dark to transition to FIXME:
+    # when room is still bright, periodically check room is dark to transition to StartState
     class AwaitState(State):
         def __init__(self, fsm: "FSM"):
-            State.__init__(self, fsm)
+            FSM.State.__init__(self, fsm)
             self.fsm.delay = 5000
         
         def run(self):
@@ -114,7 +119,7 @@ class FSM:
     # when room is dark, will check for sound and light to turn on light with servo
     class StartState(State):
         def __init__(self, fsm: "FSM"):
-            State.__init__(self, fsm)
+            FSM.State.__init__(self, fsm)
             self.fsm.delay = 100
 
         def run(self):
@@ -135,30 +140,28 @@ class FSM:
             if sound_success and sound_value > self.fsm.transition_sound_value:
                 self.fsm.set_state(FSM.CheckState(self.fsm))
 
-        # open ir camera to check room
-        class CheckState(State):
-            def __init__(self, fsm: "FSM"):
-                State.__init__(self, fsm)
-                self.fsm.delay = 100
+    # open ir camera to check room
+    class CheckState(State):
+        def __init__(self, fsm: "FSM"):
+            FSM.State.__init__(self, fsm)
+            self.fsm.delay = 100
 
-            def run(self):
-                ir_scan_file = "./ir_scan.py"
-                output = None
+        def run(self):
+            ir_scan_file = "./ir_scan.py"
+            output = None
 
-                # run ir_scan file to check room for people detection
-                if os.path.isfile(ir_scan_file):
-                    output = shell_python(ir_scan_file)
-                else:
-                    raise FileNotFoundError(f"{ir_scan_file} not found")
-                
-                # if detected, turn on lights
-                if output.returncode == 0:
-                    ardcom_move_servo()
-                
-                # always go back to Start state after scan
-                self.fsm.set_state(FSM.StartState(self.fsm))
-                    
-
+            # run ir_scan file to check room for people detection
+            if os.path.isfile(ir_scan_file):
+                output = shell_python(ir_scan_file)
+            else:
+                raise FileNotFoundError(f"{ir_scan_file} not found")
+            
+            # if detected, turn on lights
+            if output.returncode == 0:
+                ardcom_move_servo()
+            
+            # always go back to Start state after scan
+            self.fsm.set_state(FSM.StartState(self.fsm))
 
     def __init__(self, data_length: int, transition_light_value: int, transition_sound_value: int):
         self.state = None
@@ -168,6 +171,9 @@ class FSM:
         self.data_length = data_length
         self.transition_light_value = transition_light_value # value above this means room is bright, below means dark
         self.transition_sound_value = transition_sound_value # value above means sound is made, below means no sound (interference sound)
+
+    def run(self) -> None:
+        self.state.run()
 
     def reset(self) -> None:
         self.set_state(self.AwaitState(self))
@@ -217,6 +223,10 @@ def main():
 
     machine = FSM(5, 50, 50)
     machine.reset()
+
+    while True:
+        machine.run()
+        sleep(machine.delay)
 
 
 if "__main__":

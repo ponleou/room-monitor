@@ -6,14 +6,18 @@ COMMAND=""
 
 CLI_NAME="ardcom"
 
-WORKING_DIR="./."$CLI_NAME"_temp/"
+WORKING_DIR="$(dirname "$(realpath "$BASH_SOURCE")")/.${CLI_NAME}_temp/" # always creates the working directory next to the bash
 
-SOCAT_PID_PATH=$WORKING_DIR"socat.pid"
-PIPE_PATH=$WORKING_DIR$CLI_NAME"_pipe"
+WORKING_DIR_PATH="${WORKING_DIR}"
+SOCAT_PID_PATH="${WORKING_DIR}socat.pid"
+PIPE_PATH="${WORKING_DIR}${CLI_NAME}_pipe"
 
 READ_TIMEOUT=5 # ms
 
 usage() {
+    echo $WORKING_DIR
+    echo $WORKING_DIR_PATH
+    echo $SOCAT_PID_PATH
     echo "Usage:"
     echo "  $CLI_NAME start (-p [path] -b [baud])       - Start background serial connection"
     echo "  $CLI_NAME stop                              - Stop background serial connection"
@@ -40,36 +44,36 @@ start() {
     done
 
     # check if file exists and its size is greater than zero
-    if [[ -s $SOCAT_PID_PATH ]]; then
-        echo "$CLI_NAME already running at PID $(< $SOCAT_PID_PATH)"
+    if [[ -s "$SOCAT_PID_PATH" ]]; then
+        echo "$CLI_NAME already running at PID $(< "$SOCAT_PID_PATH")"
         exit 1
     fi
 
     #  check if directory exists
-    if [[ ! -d $WORKING_DIR ]]; then
-        mkdir -p $WORKING_DIR
+    if [[ ! -d "$WORKING_DIR_PATH" ]]; then
+        mkdir "$WORKING_DIR_PATH"
     fi
 
-    socat PTY,link=$PIPE_PATH,b$SERIAL_BAUD,raw,echo=0 $SERIAL_PATH,b$SERIAL_BAUD,raw & # run socat to connect FIFO to serial in background
+    socat PTY,link="$PIPE_PATH",b$SERIAL_BAUD,raw,echo=0 "$SERIAL_PATH",b$SERIAL_BAUD,raw & # run socat to connect FIFO to serial in background
     # socat creates the pipe file automatically
 
-    echo $! >> $SOCAT_PID_PATH # store pid of latest executed background process
-    echo "Started socat with PID $(< $SOCAT_PID_PATH)"
+    echo $! >> "$SOCAT_PID_PATH" # store pid of latest executed background process
+    echo "Started socat with PID $(< "$SOCAT_PID_PATH")"
 }
 
 stop() {
     # check if file exists and its size is greater than zero
-    if [[ ! -s $SOCAT_PID_PATH ]]; then
+    if [[ ! -s "$SOCAT_PID_PATH" ]]; then
         echo "$CLI_NAME is not started"
         exit 1
     fi
 
-    kill $(< $SOCAT_PID_PATH) && echo "Killed socat (PID $(< $SOCAT_PID_PATH))"
+    kill $(< "$SOCAT_PID_PATH") && echo "Killed socat (PID $(< "$SOCAT_PID_PATH"))"
     # socat deteles its associated pipe file automatically
 
     #  check if directory exists
-    if [[ -d $WORKING_DIR ]]; then
-        rm -r $WORKING_DIR
+    if [[ -d "$WORKING_DIR_PATH" ]]; then
+        rm -r "$WORKING_DIR_PATH"
     fi
 }
 
@@ -80,18 +84,18 @@ restart() {
 
 send() {
     # check if file exists
-    if [[ ! -e $PIPE_PATH ]]; then
+    if [[ ! -e "$PIPE_PATH" ]]; then
         echo "Pipe not found, did you start $CLI_NAME yet?"
         exit 1
     fi
 
     while [[ $# -gt 0 ]]; do
-        echo -e $1 > $PIPE_PATH
+        echo -e $1 > "$PIPE_PATH"
         shift 1
 
         timedout=0 # error checker to see if the read times out
 
-        while timedout=1 && read -r -t $READ_TIMEOUT output < $PIPE_PATH; do
+        while timedout=1 && read -r -t $READ_TIMEOUT output < "$PIPE_PATH"; do
 
             timedout=0
             output=$(printf '%s' "$output" | tr -d '\r\n') # clean whitespaces
