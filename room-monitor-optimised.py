@@ -149,8 +149,9 @@ class FSM(IState):
             # if detected, turn on lights
             if self.fsm.check_ir():
                 ardcom_move_servo()
-                sleep(5)
             
+            self.fsm.close_camera()
+            sleep(5)
             # always go back to Start state after scan
             self.fsm.set_state(FSM.StartState(self.fsm))
 
@@ -223,11 +224,9 @@ class FSM(IState):
 
                 # exit with 0, success
                 if detection_num >= self.camera_scan_threshold:
-                    self.close_camera()
                     return True
             
             # exit with 1, failed
-            self.close_camera()
             return False
 
     # from IState
@@ -278,7 +277,7 @@ class FSM(IState):
 
 def main():
     ardcom_start()
-    sleep(1)
+    sleep(2)
 
     machine = FSM(DATA_LENGTH, TRANSITION_LIGHT_VALUE, TRANSITION_SOUND_VALUE, CAMERA_TIMEOUT, CAMERA_THRESHOLD)
     machine.reset()

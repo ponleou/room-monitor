@@ -19,7 +19,7 @@ usage() {
     echo "  $CLI_NAME start (-p [path] -b [baud])       - Start background serial connection"
     echo "  $CLI_NAME stop                              - Stop background serial connection"
     echo "  $CLI_NAME restart                           - Restart background serial connection"
-    echo "  $CLI_NAME send [command 1, command 2...]    - Send command to serial connection"
+    echo "  $CLI_NAME send [command 1] [command 2]...   - Send command to serial connection"
 }
 
 start() {
